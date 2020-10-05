@@ -19,13 +19,15 @@ RSpec.describe Dependabot::GoModules::FileUpdater do
         "username" => "x-access-token",
         "password" => "token"
       }],
-      repo_contents_path: repo_contents_path
+      repo_contents_path: repo_contents_path,
+      vendor: vendor
     )
   end
 
   let(:files) { [go_mod, go_sum] }
   let(:project_name) { "go_sum" }
   let(:repo_contents_path) { build_tmp_repo(project_name) }
+  let(:vendor) { false }
 
   let(:go_mod) do
     Dependabot::DependencyFile.new(name: "go.mod", content: go_mod_body)
@@ -115,6 +117,88 @@ RSpec.describe Dependabot::GoModules::FileUpdater do
 
       it "includes an updated go.sum" do
         expect(updated_files.find { |f| f.name == "go.sum" }).to_not be_nil
+      end
+    end
+
+    context "vendoring" do
+      let(:project_name) { "vendor" }
+      let(:vendor) { true }
+
+      let(:dependency_name) { "github.com/pkg/errors" }
+      let(:dependency_version) { "v0.8.1" }
+      let(:dependency_previous_version) { "v0.8.0" }
+      let(:requirements) do
+        [{
+          file: "go.mod",
+          requirement: dependency_version,
+          groups: [],
+          source: {
+            type: "default",
+            source: "github.com/pkg"
+          }
+        }]
+      end
+      let(:previous_requirements) do
+        [{
+          file: "go.mod",
+          requirement: dependency_previous_version,
+          groups: [],
+          source: {
+            type: "default",
+            source: "github.com/pkg"
+          }
+        }]
+      end
+
+      it "includes the vendored files" do
+        expect(updater.updated_dependency_files.map(&:name)).to match_array(
+          %w(
+            go.mod
+            go.sum
+            vendor/github.com/pkg/errors/.travis.yml
+            vendor/github.com/pkg/errors/Makefile
+            vendor/github.com/pkg/errors/README.md
+            vendor/github.com/pkg/errors/errors.go
+            vendor/github.com/pkg/errors/go113.go
+            vendor/github.com/pkg/errors/stack.go
+            vendor/modules.txt
+          )
+        )
+      end
+
+      it "updates the vendor/modules.txt file to the right version" do
+        modules_file = updater.updated_dependency_files.find do |file|
+          file.name == "vendor/modules.txt"
+        end
+
+        expect(modules_file.content).to include "github.com/pkg/errors v0.8.1"
+      end
+
+      it "includes the new source code" do
+        # Sample to verify the source code matches:
+        # https://github.com/pkg/errors/compare/v0.8.0...v0.8.1
+        stack_file = updater.updated_dependency_files.find do |file|
+          file.name == "vendor/github.com/pkg/errors/stack.go"
+        end
+
+        expect(stack_file.content).to include(
+          <<~LINE
+            Format formats the stack of Frames according to the fmt.Formatter interface.
+          LINE
+        )
+        expect(stack_file.content).to_not include(
+          <<~LINE
+            segments from the beginning of the file path until the number of path
+          LINE
+        )
+      end
+
+      it "deletes old files" do
+        file = updater.updated_dependency_files.find do |f|
+          f.name == "vendor/github.com/pkg/errors/Makefile"
+        end
+
+        expect(file.deleted?).to eq true
       end
     end
   end

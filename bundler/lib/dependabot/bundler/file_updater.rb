@@ -2,6 +2,7 @@
 
 require "dependabot/file_updaters"
 require "dependabot/file_updaters/base"
+require "dependabot/file_updaters/vendor_updater"
 
 module Dependabot
   module Bundler
@@ -21,6 +22,7 @@ module Dependabot
       end
 
       # rubocop:disable Metrics/PerceivedComplexity
+      # rubocop:disable Metrics/AbcSize
       def updated_dependency_files
         updated_files = []
 
@@ -54,13 +56,16 @@ module Dependabot
         check_updated_files(updated_files)
 
         base_dir = updated_files.first.directory
-        updated_vendor_cache_files(base_directory: base_dir).each do |file|
+        vendor_updater.
+          updated_vendor_cache_files(base_directory: base_dir).
+          each do |file|
           updated_files << file
         end
 
         updated_files
       end
       # rubocop:enable Metrics/PerceivedComplexity
+      # rubocop:enable Metrics/AbcSize
 
       private
 

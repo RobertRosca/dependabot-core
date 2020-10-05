@@ -3,6 +3,7 @@
 require "dependabot/shared_helpers"
 require "dependabot/file_updaters"
 require "dependabot/file_updaters/base"
+require "dependabot/file_updaters/vendor_updater"
 
 module Dependabot
   module GoModules
@@ -10,7 +11,7 @@ module Dependabot
       require_relative "file_updater/go_mod_updater"
 
       def initialize(dependencies:, dependency_files:, repo_contents_path: nil,
-                     credentials:)
+                     credentials:, vendor: false)
         super
         return unless repo_contents_path.nil?
 
@@ -52,6 +53,12 @@ module Dependabot
                 content: file_updater.updated_go_sum_content
               )
           end
+
+          vendor_updater.
+            updated_vendor_cache_files(base_directory: directory).
+            each do |file|
+            updated_files << file
+          end
         end
 
         raise "No files changed!" if updated_files.none?
@@ -79,6 +86,17 @@ module Dependabot
         dependency_files.first.directory
       end
 
+      def vendor_dir
+        File.join(repo_contents_path, directory, "vendor")
+      end
+
+      def vendor_updater
+        Dependabot::FileUpdaters::VendorUpdater.new(
+          repo_contents_path: repo_contents_path,
+          vendor_dir: vendor_dir
+        )
+      end
+
       def file_updater
         @file_updater ||=
           GoModUpdater.new(
@@ -86,7 +104,7 @@ module Dependabot
             credentials: credentials,
             repo_contents_path: repo_contents_path,
             directory: directory,
-            tidy: !@repo_contents_stub
+            options: { tidy: !@repo_contents_stub, vendor: @vendor }
           )
       end
     end

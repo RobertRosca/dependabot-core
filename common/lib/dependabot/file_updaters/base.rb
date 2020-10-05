@@ -11,11 +11,12 @@ module Dependabot
       end
 
       def initialize(dependencies:, dependency_files:, repo_contents_path: nil,
-                     credentials:)
+                     credentials:, vendor: false)
         @dependencies = dependencies
         @dependency_files = dependency_files
         @repo_contents_path = repo_contents_path
         @credentials = credentials
+        @vendor = vendor
 
         check_required_files
       end
